@@ -11,7 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{8AD68764-48C5-44E5-A4E3-4C8D3C7C4D2C}</ProjectGuid>
+    <ProjectGuid>{DFF65696-FAAD-44ED-B82F-35D90BBB7DA2}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>RawSocket_winsock</RootNamespace>
   </PropertyGroup>
@@ -76,6 +76,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="raw_socket_winsock.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

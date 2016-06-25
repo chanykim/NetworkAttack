@@ -1,9 +1,10 @@
 
 #include <WinSock2.h>
-#include <WS2tcpip.h>
+#include <WS2tcpip.h>		// IP_HDRINCL is here
 #include <stdio.h>
+#include <conio.h>
 
-#pragma lib(lib, "ws2_32.lib")
+#pragma comment(lib, "ws2_32.lib")
 
 /*---------------------------------------------------------------------------
 Raw Socket에 의해 Packet이 만들어지는 과정
@@ -29,9 +30,8 @@ typedef struct ip_hdr{
 	unsigned char ip_dont_fragment : 1;
 	unsigned char ip_more_fragment : 1;
 	
-	unsigned char ip_fragment_offset : 13;	// Fragment offset field
-	//unsigned char ip_fragment_offset_1 : 5;	// Fragment offset field
-	//unsigned char ip_fragment_offset_2;	// Fragment offset field
+	unsigned char ip_fragment_offset_1 : 5;	// Fragment offset field
+	unsigned char ip_fragment_offset_2;	// Fragment offset field
 
 	unsigned char ip_ttl;
 	unsigned char ip_protocol;			// Protocol(TCP, UDP, etc)
@@ -42,23 +42,42 @@ typedef struct ip_hdr{
 
 // TCP HEADER
 typedef struct tcp_hdr{
-	unsigned short src_port;
-	unsigned short dest_port;
-	unsigned int sequence;
-	unsigned int acknowledge;
+	unsigned short src_port;		// source port
+	unsigned short dest_port;		// destination port
+	unsigned int sequence;			// sequence number - 32 bits
+	unsigned int acknowledge;		// acknowledge number - 32 bits
 
-	unsigned char ns : 1;
-	unsigned char reserved_part1 : 3;
+	unsigned char data_offset : 4;	
+	unsigned char reserved_part : 3;
+	unsigned char ns : 1;				// Nonce: Not set
+	unsigned char cwr : 1;				// Congestion Windows Reduced Flag
+	unsigned char ecn : 1;				// ECN-Echo Flag
+		
+	unsigned char urg : 1;
+	unsigned char ack : 1;
+	unsigned char psh : 1;
+	unsigned char rst : 1;
+	unsigned char syn : 1;
+	unsigned char fin : 1;
+
+	unsigned short window;
+	unsigned short checksum;
+	unsigned short urgent_pointer;
 }TCP_HDR;
+
 int main()
 {
 	SOCKET raw_socket = INVALID_SOCKET;
 	WSADATA wsaData;
 	SOCKADDR_IN	destAddr;
 	int nResult;
-	int optVal;
+	int payload = 512, optVal;
 	char hostname[256], buf[1024], source_ip[32];
+	char *data = NULL;
 	hostent *server;
+
+	IPV4_HDR *v4hdr = NULL;
+	TCP_HDR *tcphdr = NULL;
 
 	// Initialize winsock 소켓을 한다.
 
@@ -103,16 +122,68 @@ int main()
 	}
 	destAddr.sin_family = AF_INET;
 	destAddr.sin_port = htons(5000);
-	memcpy(&destAddr.sin_addr.S_un.S_addr, server->h_addr_list, server->h_length);
+	memcpy(&destAddr.sin_addr.S_un.S_addr, server->h_addr_list[0], server->h_length);
 	printf("Resolved\n");
 
 	printf("\nInput Source IP : ");
 	gets(source_ip);
 
 	// setup TCP/IP
+	// IP
+	v4hdr = (IPV4_HDR *)buf;
+	v4hdr->ip_version = 4;
+	v4hdr->ip_header_len = 5;
+	v4hdr->ip_tos = 0;
+	v4hdr->ip_total_length = htons(sizeof(IPV4_HDR)+sizeof(TCP_HDR)+payload);
+	v4hdr->ip_id = htons(2);
+	v4hdr->ip_fragment_offset_1 = 0;
+	v4hdr->ip_fragment_offset_2 = 0;
+	v4hdr->ip_reserved_zero = 0;
+	v4hdr->ip_dont_fragment = 1;
+	v4hdr->ip_more_fragment = 0;
+	v4hdr->ip_ttl = 8;
+	v4hdr->ip_protocol = IPPROTO_TCP;
+	v4hdr->ip_src_addr = inet_addr(source_ip);
+	v4hdr->ip_dest_addr = inet_addr(inet_ntoa(destAddr.sin_addr));
+	v4hdr->ip_checksum = 0;
+
+	// TCP
+	tcphdr = (TCP_HDR *)&buf[sizeof(IPV4_HDR)];	// get the pointer to the tcp header in the packet
+	tcphdr->src_port = htons(1234);
+	tcphdr->dest_port = htons(50000);
+	tcphdr->ns = 1;
+	tcphdr->cwr = 0;
+	tcphdr->ecn = 1;
+	tcphdr->urg = 0;
+	tcphdr->ack = 0;
+	tcphdr->psh = 0;
+	tcphdr->rst = 1;
+	tcphdr->syn = 0;
+	tcphdr->fin = 0;
+	tcphdr->checksum = 0;
+	// Initialize the TCP payload to some rubbish
+	data = &buf[sizeof(IPV4_HDR)+sizeof(TCP_HDR)];
+	memset(data, '^', payload);
+
+	printf("\nSending Packet...\n");
+
+	/* keyboard  */
+	int k = 1;
+	while (!_kbhit())
+	{
+		printf(" %d packets send\r", k++);
+		nResult = sendto(raw_socket, buf, sizeof(IPV4_HDR)+sizeof(TCP_HDR)+payload,
+			0, (SOCKADDR *)&destAddr, sizeof(destAddr));
+		if (nResult == SOCKET_ERROR)
+		{
+			printf("Error sending Packet : %d\n", WSAGetLastError());
+			break;
+		}
+	}
 
 	// cleanup
 	WSACleanup();
+	closesocket(raw_socket);
 
 	return 0;
 }
