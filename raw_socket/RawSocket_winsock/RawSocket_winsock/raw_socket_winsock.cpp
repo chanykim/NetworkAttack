@@ -109,7 +109,7 @@ int main()
 		return 1;
 	}
 	printf("setsockopt success...\n");
-
+#if 0
 	// input Target Hostname
 	printf("Enter Hostname : ");
 	gets(hostname);
@@ -121,9 +121,18 @@ int main()
 		return 1;
 	}
 	destAddr.sin_family = AF_INET;
-	destAddr.sin_port = htons(5000);
+	destAddr.sin_port = htons(50000);
 	memcpy(&destAddr.sin_addr.S_un.S_addr, server->h_addr_list[0], server->h_length);
 	printf("Resolved\n");
+#endif
+
+	// Input Target IP
+	printf("\nEnter Target IP : ");
+	char target_ip[32];
+	gets(target_ip);
+	destAddr.sin_family = AF_INET;
+	destAddr.sin_port = htons(50000);
+	destAddr.sin_addr.S_un.S_addr = inet_addr(target_ip);
 
 	printf("\nInput Source IP : ");
 	gets(source_ip);
@@ -184,6 +193,8 @@ int main()
 	// cleanup
 	WSACleanup();
 	closesocket(raw_socket);
+
+	system("pause");
 
 	return 0;
 }
